@@ -1,12 +1,20 @@
-from core import api_request
+from core import tts
 
 
-def test_api_request():
+def test_tts():
     with open("test.txt", encoding="utf-8") as f:
         text = f.read()
-    api_request(text, save_path="test")
+    for _, message in tts(text, save_path="test"):
+        print(message)
+
+
+def test_tts_long():
+    with open("test_long.txt", encoding="utf-8") as f:
+        text = f.read()
+    for _, message in tts(text, save_path="test_long"):
+        print(message)
 
 
 if __name__ == "__main__":
-    test_api_request()
-    print("test completed")
+    test_tts()
+    test_tts_long()

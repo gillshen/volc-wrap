@@ -1,6 +1,7 @@
 import base64
 import json
 import uuid
+import re
 import requests
 
 
@@ -16,18 +17,59 @@ host = "openspeech.bytedance.com"
 api_url = f"https://{host}/api/v1/tts"
 
 
-def api_request(
+def tts(
     text: str,
     save_path: str,
     voice_type: str = "BV702_streaming",
-    text_type: str = "plain",
     speed_ratio: float = 1.0,
     volume_ratio: float = 1.0,
     pitch_ratio: float = 1.0,
     emotion: str = "",
     language: str = "",
 ):
-    request_json = {
+    if language in {"", "cn", "ja"} or language.startswith("zh_"):
+        sentence_pattern = r".+?(?:[。！？]|$)\s*"
+    else:
+        sentence_pattern = r".+?(?:[.!?]|$)\s*"
+
+    max_len = 250
+    chunks = []
+    for sentence in re.findall(sentence_pattern, text):
+        if not chunks or len(chunks[-1]) + len(sentence) > max_len:
+            chunks.append(sentence)
+        else:
+            chunks[-1] += sentence
+
+    audio_params = {
+        "voice_type": voice_type,
+        "encoding": "mp3",
+        "speed_ratio": speed_ratio,
+        "volume_ratio": volume_ratio,
+        "pitch_ratio": pitch_ratio,
+    }
+    if emotion:
+        audio_params["emotion"] = emotion
+    if language:
+        audio_params["language"] = language
+
+    if not save_path.endswith(".mp3"):
+        save_path += ".mp3"
+
+    with open(save_path, "wb") as target_file:
+        n = len(chunks)
+        for i, chunk in enumerate(chunks, start=1):
+            resp = api_request(chunk, audio_params)
+            try:
+                data = resp["data"]
+            except KeyError:
+                raise ApiError(resp["message"])
+            else:
+                target_file.write(base64.b64decode(data))
+                yield data, f"Progress: {i}/{n}"
+
+
+def api_request(text: str, audio_params: dict):
+    payload = {
         "app": {
             "appid": appid,
             "token": "access_token",
@@ -36,41 +78,18 @@ def api_request(
         "user": {
             "uid": "388808087185088",
         },
-        "audio": {
-            "voice_type": voice_type,
-            "encoding": "mp3",
-            "speed_ratio": speed_ratio,
-            "volume_ratio": volume_ratio,
-            "pitch_ratio": pitch_ratio,
-        },
+        "audio": audio_params,
         "request": {
             "reqid": str(uuid.uuid4()),
             "text": text,
-            "text_type": text_type,
+            "text_type": "plain",
             "operation": "query",
             "with_frontend": 1,
             "frontend_type": "unitTson",
         },
     }
-    if emotion:
-        request_json["audio"]["emotion"] = emotion
-    if language:
-        request_json["audio"]["language"] = language
-
     try:
-        resp = requests.post(
-            api_url,
-            json.dumps(request_json),
-            headers=headers,
-        )
-        body = resp.json()
+        resp = requests.post(api_url, json.dumps(payload), headers=headers)
+        return resp.json()
     except Exception as e:
         raise ApiError from e
-
-    if "data" in body:
-        if not save_path.endswith(".mp3"):
-            save_path += ".mp3"
-        with open(save_path, "wb") as target_file:
-            target_file.write(base64.b64decode(body["data"]))
-    else:
-        raise ApiError(body["message"])

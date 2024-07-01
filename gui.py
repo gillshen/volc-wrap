@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from core import api_request, ApiError
+from core import tts, ApiError
 from voices import categories as voice_categories, get_voices
 
 ALL_CATEGORIES = "All Categories"
@@ -130,7 +130,12 @@ class App(QMainWindow):
         text = self.text_edit.toPlainText()
         voice_name = self.voice_selector.currentText()
         try:
-            api_request(text, save_path, voice_type=self._voices[voice_name])
+            for _, message in tts(
+                text,
+                save_path,
+                voice_type=self._voices[voice_name],
+            ):
+                print(message)
         except ApiError:
             print(traceback.format_exc())
         else:
