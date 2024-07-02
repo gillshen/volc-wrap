@@ -2,6 +2,7 @@ import sys
 import traceback
 import os
 import os.path
+import re
 import webbrowser
 
 from PyQt6.QtWidgets import (
@@ -19,6 +20,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QSplitter,
+    QMessageBox,
     QSpacerItem,
 )
 from PyQt6.QtCore import Qt
@@ -31,6 +33,10 @@ DEFAULT_SPEED = 10
 DEFAULT_VOLUME = 10
 DEFAULT_PITCH = 10
 DEFAULT_AUTOPLAY = 10
+
+
+class IllegalFilenameError(Exception):
+    pass
 
 
 class MainWindow(QMainWindow):
@@ -111,10 +117,24 @@ class MainWindow(QMainWindow):
 
         right_layout.addSpacerItem(QSpacerItem(0, 20))
 
-        # Audio file name entry
-        self.save_path_entry = QLineEdit()
-        self.save_path_entry.setPlaceholderText("Enter audio file name here...")
-        right_layout.addWidget(self.save_path_entry)
+        # Saving dir
+        right_layout.addWidget(QLabel("Directory to save the output in"))
+        dir_selector = QWidget()
+        right_layout.addWidget(dir_selector)
+        dir_selector_layout = QHBoxLayout(dir_selector)
+        dir_selector_layout.setContentsMargins(0, 0, 0, 0)
+        self.save_dir_selector = QComboBox()
+        self.save_dir_selector.addItem(os.getcwd())
+        dir_selector_layout.addWidget(self.save_dir_selector, stretch=1)
+        self.change_dir_button = QPushButton("Change")
+        self.change_dir_button.clicked.connect(self.change_save_dir)
+        dir_selector_layout.addWidget(self.change_dir_button, stretch=0)
+
+        # Audio filename
+        right_layout.addWidget(QLabel("Filename"))
+        self.save_filename_entry = QLineEdit()
+        self.save_filename_entry.setPlaceholderText("Enter audio file name here...")
+        right_layout.addWidget(self.save_filename_entry)
 
         # Autoplay check
         self.autoplay_check = QCheckBox("Autoplay when done")
@@ -124,7 +144,7 @@ class MainWindow(QMainWindow):
         right_layout.addSpacerItem(QSpacerItem(0, 10))
 
         # API call button
-        self.tts_button = QPushButton("Text to Speech")
+        self.tts_button = QPushButton("Convert to Speech")
         self.tts_button.clicked.connect(self.text_to_speech)
         right_layout.addWidget(self.tts_button)
 
@@ -143,7 +163,7 @@ class MainWindow(QMainWindow):
             """
             QPushButton {
                 background-color: #b1e0f0;
-                padding: 5;
+                padding: 6;
             }
             QPushButton:hover {
                 background-color: #87d0e8;
@@ -164,7 +184,18 @@ class MainWindow(QMainWindow):
         )
         self.voice_category_selector.setStyleSheet("padding: 6;")
         self.voice_selector.setStyleSheet("padding: 6;")
-        self.save_path_entry.setStyleSheet("padding: 6;")
+        self.save_dir_selector.setStyleSheet("padding: 6;")
+        self.change_dir_button.setStyleSheet(
+            """
+            QPushButton {
+                padding: 6 16;
+            }
+            QPushButton:hover {
+                background-color: #87d0e8;
+            }
+            """
+        )
+        self.save_filename_entry.setStyleSheet("padding: 6;")
 
     def eventFilter(self, source, event):
         if event.type() == event.Type.Wheel and source is self.text_edit.viewport():
@@ -188,17 +219,6 @@ class MainWindow(QMainWindow):
             with open(file_name, "r", encoding="utf-8") as file:
                 self.text_edit.setPlainText(file.read())
 
-    def save_file_dialog(self):
-        file_name, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Audio File",
-            "",
-            "MP3 File (*.mp3)",
-        )
-        if file_name:
-            self.save_path_entry.setText(file_name)
-            return file_name
-
     def on_voice_category_selection(self):
         category = self.voice_category_selector.currentText()
         if category == ALL_CATEGORIES:
@@ -219,14 +239,26 @@ class MainWindow(QMainWindow):
     def set_pitch_label(self, pitch: int):
         self.pitch_label.setText(f"Pitch: {pitch / 10}")
 
+    def change_save_dir(self):
+        file_name = QFileDialog.getExistingDirectory(
+            self,
+            "Choose a directory",
+        )
+        if file_name:
+            self.save_dir_selector.addItem(file_name)
+            self.save_dir_selector.setCurrentText(file_name)
+
     def get_save_path(self) -> str:
-        path = self.save_path_entry.text()
-        if not path:
-            return self.save_file_dialog()
-        if not path.endswith(".mp3"):
-            path += ".mp3"
-        cwd = os.getcwd()
-        return os.path.join(cwd, path)
+        save_filename = self.save_filename_entry.text().strip()
+        if not save_filename:
+            return ""
+        if re.search(r'[<>:"/\\|?*]', save_filename):
+            raise IllegalFilenameError
+        if not save_filename.endswith(".mp3"):
+            save_filename += ".mp3"
+        save_dir = self.save_dir_selector.currentText()
+        save_path = os.path.join(save_dir, save_filename)
+        return save_path
 
     def get_voice_type(self) -> str:
         voice_name = self.voice_selector.currentText()
@@ -242,10 +274,28 @@ class MainWindow(QMainWindow):
         return self.pitch_slider.value() / 10
 
     def text_to_speech(self):
-        save_path = self.get_save_path()
-        if not save_path:
+        text = self.text_edit.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(
+                self,
+                "Text required",
+                "You did not provide any text for conversion.",
+            )
             return
-        text = self.text_edit.toPlainText()
+
+        try:
+            save_path = self.get_save_path()
+        except IllegalFilenameError:
+            QMessageBox.warning(
+                self,
+                "Illegal filename",
+                'Filename cannot contain any of following characters: <>:"/\\|?*',
+            )
+            return
+        if not save_path:
+            QMessageBox.warning(self, "Filename required", "Please specify a filename.")
+            return
+
         try:
             for _, message in tts(
                 text,
@@ -257,11 +307,18 @@ class MainWindow(QMainWindow):
             ):
                 print(message)
         except ApiError:
-            print(traceback.format_exc())
+            QMessageBox.critical(self, ApiError.__name__, traceback.format_exc())
+        except Exception as e:
+            QMessageBox.critical(self, e.__class__.__name__, traceback.format_exc())
         else:
             if self.autoplay_check.isChecked():
                 webbrowser.open(save_path)
-            print("tts done")
+            else:
+                QMessageBox.information(
+                    self,
+                    "Conversion succeeded",
+                    f"Audio file saved at {save_path}",
+                )
 
 
 if __name__ == "__main__":
