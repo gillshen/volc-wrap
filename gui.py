@@ -4,6 +4,8 @@ import os
 import os.path
 import re
 import webbrowser
+from typing import Tuple
+from dataclasses import dataclass
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -23,9 +25,10 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSpacerItem,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QTextCursor
 
-from core import tts, ApiError
+from core import tts
 from voices import categories as voice_categories, get_voices
 
 ALL_CATEGORIES = "All Categories"
@@ -37,6 +40,15 @@ DEFAULT_AUTOPLAY = 10
 
 class IllegalFilenameError(Exception):
     pass
+
+
+@dataclass()
+class ApiParams:
+    text: str
+    voice_type: str
+    speed_ratio: float
+    volume_ratio: float
+    pitch_ratio: float
 
 
 class MainWindow(QMainWindow):
@@ -54,16 +66,25 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
-        # Left pane: Plain text widget
-        self.text_edit = QPlainTextEdit()
-        self.text_edit.setPlaceholderText("Open a file or type your text here...")
-        splitter.addWidget(self.text_edit)
-
-        # Right pane: Controls
+        # Two panes
+        left_pane = QSplitter(Qt.Orientation.Vertical)
+        splitter.addWidget(left_pane)
         right_pane = QWidget()
-        right_layout = QVBoxLayout(right_pane)
         splitter.addWidget(right_pane)
         splitter.setSizes([600, 300])
+
+        # Left pane: Text edit
+        self.text_edit = QPlainTextEdit()
+        self.text_edit.setPlaceholderText("Open a file or type your text here...")
+        left_pane.addWidget(self.text_edit)
+
+        self.console = QPlainTextEdit()
+        self.console.setReadOnly(True)
+        left_pane.addWidget(self.console)
+        left_pane.setSizes([500, 100])
+
+        # Right pane: Controls
+        right_layout = QVBoxLayout(right_pane)
 
         # Open file button
         self.open_file_button = QPushButton("Open Text File")
@@ -296,29 +317,70 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Filename required", "Please specify a filename.")
             return
 
+        api_params = ApiParams(
+            text=text,
+            voice_type=self.get_voice_type(),
+            speed_ratio=self.get_speed_ratio(),
+            volume_ratio=self.get_volume_ratio(),
+            pitch_ratio=self.get_pitch_ratio(),
+        )
+
+        self.worker = ApiCaller(api_params=api_params, save_path=save_path)
+        self.worker.in_progress.connect(self.log)
+        self.worker.started.connect(self.on_tts_start)
+        self.worker.finished.connect(self.on_tts_finish)
+        self.worker.error.connect(self.on_tts_error)
+        self.worker.start()
+
+    def on_tts_start(self):
+        self.tts_button.setDisabled(True)
+        self.console.clear()
+        self.log("Starting conversion...\n")
+
+    def on_tts_finish(self):
+        self.tts_button.setEnabled(True)
+        save_path = self.worker.save_path
+        self.log(f"Conversion finished.\nAudio saved at {save_path}.")
+        if self.autoplay_check.isChecked():
+            webbrowser.open(save_path)
+
+    def on_tts_error(self, data: Tuple[Exception, str]):
+        self.tts_button.setEnabled(True)
+        exc, message = data
+        self.log(f"Conversion error:\n{message}")
+        QMessageBox.critical(self, exc.__class__.__name__, message)
+
+    def log(self, message):
+        self.console.setReadOnly(False)
+        self.console.insertPlainText(message)
+        self.console.setReadOnly(True)
+        self.console.moveCursor(QTextCursor.MoveOperation.End)
+        self.console.ensureCursorVisible()
+
+
+class ApiCaller(QThread):
+    in_progress = pyqtSignal(str)
+    error = pyqtSignal(tuple)
+
+    def __init__(self, api_params: ApiParams, save_path: str) -> None:
+        super().__init__()
+        self.api_params = api_params
+        self.save_path = save_path
+
+    def run(self):
+        params = self.api_params
         try:
             for _, message in tts(
-                text,
-                save_path,
-                voice_type=self.get_voice_type(),
-                speed_ratio=self.get_speed_ratio(),
-                volume_ratio=self.get_volume_ratio(),
-                pitch_ratio=self.get_pitch_ratio(),
+                save_path=self.save_path,
+                text=params.text,
+                voice_type=params.voice_type,
+                speed_ratio=params.speed_ratio,
+                volume_ratio=params.volume_ratio,
+                pitch_ratio=params.pitch_ratio,
             ):
-                print(message)
-        except ApiError:
-            QMessageBox.critical(self, ApiError.__name__, traceback.format_exc())
+                self.in_progress.emit(f"{message}...\n")
         except Exception as e:
-            QMessageBox.critical(self, e.__class__.__name__, traceback.format_exc())
-        else:
-            if self.autoplay_check.isChecked():
-                webbrowser.open(save_path)
-            else:
-                QMessageBox.information(
-                    self,
-                    "Conversion succeeded",
-                    f"Audio file saved at {save_path}",
-                )
+            self.error.emit(e, traceback.format_exc())
 
 
 if __name__ == "__main__":
