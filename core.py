@@ -28,9 +28,9 @@ def tts(
     language: str = "",
 ):
     if language in {"", "cn", "ja"} or language.startswith("zh_"):
-        sentence_pattern = r".+?(?:[。！？]|$)\s*"
+        sentence_pattern = r""".+?(?:[。！？]["”」』)）]*|\n|$)\s*"""
     else:
-        sentence_pattern = r".+?(?:[.!?]|$)\s*"
+        sentence_pattern = r""".+?(?:[.!?]["”)]*|\n|$)\s*"""
 
     max_len = 250
     chunks = []
