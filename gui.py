@@ -337,8 +337,11 @@ class MainWindow(QMainWindow):
         self.console.clear()
         self.log("Starting...\n")
 
-    def on_tts_finish(self):
+    def on_tts_finish(self, status: int):
         self.tts_button.setEnabled(True)
+        if status:
+            self.log("Task terminated due to error.")
+            return
         save_path = self.worker.save_path
         self.log(f"Finished.\nAudio saved at {save_path}.")
         if self.autoplay_check.isChecked():
@@ -361,6 +364,7 @@ class MainWindow(QMainWindow):
 class ApiCaller(QThread):
     in_progress = pyqtSignal(str)
     error = pyqtSignal(tuple)
+    finished = pyqtSignal(int)
 
     def __init__(self, api_params: ApiParams, save_path: str) -> None:
         super().__init__()
@@ -381,6 +385,9 @@ class ApiCaller(QThread):
                 self.in_progress.emit(f"{message}...\n")
         except Exception as e:
             self.error.emit(e, traceback.format_exc())
+            self.finished.emit(1)
+        else:
+            self.finished.emit(0)
 
 
 if __name__ == "__main__":
