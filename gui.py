@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
         right_layout.addSpacerItem(QSpacerItem(0, 10))
 
         # API call button
-        self.tts_button = QPushButton("Convert to Speech")
+        self.tts_button = QPushButton("Create Speech")
         self.tts_button.clicked.connect(self.text_to_speech)
         right_layout.addWidget(self.tts_button)
 
@@ -335,27 +335,27 @@ class MainWindow(QMainWindow):
     def on_tts_start(self):
         self.tts_button.setDisabled(True)
         self.console.clear()
-        self.log("Starting conversion...\n")
+        self.log("Starting...\n")
 
     def on_tts_finish(self):
         self.tts_button.setEnabled(True)
         save_path = self.worker.save_path
-        self.log(f"Conversion finished.\nAudio saved at {save_path}.")
+        self.log(f"Finished.\nAudio saved at {save_path}.")
         if self.autoplay_check.isChecked():
             webbrowser.open(save_path)
 
     def on_tts_error(self, data: Tuple[Exception, str]):
         self.tts_button.setEnabled(True)
         exc, message = data
-        self.log(f"Conversion error:\n{message}")
+        self.log(f"Error:\n{message}")
         QMessageBox.critical(self, exc.__class__.__name__, message)
 
     def log(self, message):
+        self.console.moveCursor(QTextCursor.MoveOperation.End)
+        self.console.ensureCursorVisible()
         self.console.setReadOnly(False)
         self.console.insertPlainText(message)
         self.console.setReadOnly(True)
-        self.console.moveCursor(QTextCursor.MoveOperation.End)
-        self.console.ensureCursorVisible()
 
 
 class ApiCaller(QThread):
