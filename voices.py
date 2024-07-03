@@ -1,6 +1,8 @@
 import json
 from collections import namedtuple
 
+from pypinyin import lazy_pinyin
+
 Voice = namedtuple("Voice", ["name", "code", "category"])
 _voices: list[Voice] = []
 
@@ -13,7 +15,7 @@ with open("voices.json", encoding="utf-8") as _json:
         for name, code in collection.items():
             _voices.append(Voice(name, code, category))
 
-_voices.sort()
+_voices.sort(key=lambda v: lazy_pinyin(v.name))
 
 del category
 del collection
