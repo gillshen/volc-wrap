@@ -59,13 +59,11 @@ def tts(
         n = len(chunks)
         for i, chunk in enumerate(chunks, start=1):
             resp = api_request(chunk, audio_params)
-            try:
-                data = resp["data"]
-            except KeyError:
+            if "data" not in resp:
                 raise ApiError(resp["message"])
-            else:
-                target_file.write(base64.b64decode(data))
-                yield data, f"Progress: {i}/{n}"
+            data = resp["data"]
+            target_file.write(base64.b64decode(data))
+            yield data, f"Progress: {i}/{n}"
 
 
 def api_request(text: str, audio_params: dict):

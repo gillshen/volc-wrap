@@ -35,7 +35,7 @@ ALL_CATEGORIES = "All Categories"
 DEFAULT_SPEED = 10
 DEFAULT_VOLUME = 10
 DEFAULT_PITCH = 10
-DEFAULT_AUTOPLAY = 10
+DEFAULT_AUTOPLAY = True
 
 
 class IllegalFilenameError(Exception):
@@ -350,7 +350,7 @@ class MainWindow(QMainWindow):
     def on_tts_error(self, data: Tuple[Exception, str]):
         self.tts_button.setEnabled(True)
         exc, message = data
-        self.log(f"Error:\n{message}")
+        self.log(f"Error:\n{message}\n")
         QMessageBox.critical(self, exc.__class__.__name__, message)
 
     def log(self, message):
@@ -384,7 +384,7 @@ class ApiCaller(QThread):
             ):
                 self.in_progress.emit(f"{message}...\n")
         except Exception as e:
-            self.error.emit(e, traceback.format_exc())
+            self.error.emit((e, traceback.format_exc()))
             self.finished.emit(1)
         else:
             self.finished.emit(0)
