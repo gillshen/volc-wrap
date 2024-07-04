@@ -124,5 +124,50 @@
         "天才少女": "BV421_streaming",
         "Stefan": "BV702_streaming",
         "灿灿": "BV700_streaming"
+    },
+    "东北话": {
+        "东北老铁": "BV021_streaming",
+        "东北丫头": "BV020_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "西安话": {
+        "西安佟掌柜": "BV210_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "上海话": {
+        "沪上阿姐": "BV217_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "广西普通话": {
+        "广西表哥": "BV213_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "台湾普通话": {
+        "甜美台妹": "BV025_streaming",
+        "台普男声": "BV227_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "粤语": {
+        "港剧男神": "BV026_streaming",
+        "广东女仔": "BV424_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "天津话": {
+        "相声演员": "BV212_streaming"
+    },
+    "川渝话": {
+        "重庆小伙": "BV019_streaming",
+        "四川甜妹儿": "BV221_streaming",
+        "重庆幺妹儿": "BV423_streaming",
+        "方言灿灿": "BV704_streaming"
+    },
+    "郑州话": {
+        "乡村企业家": "BV214_streaming"
+    },
+    "湖南普通话": {
+        "湖南妹坨": "BV226_streaming"
+    },
+    "长沙话": {
+        "长沙靓女": "BV216_streaming"
     }
 }

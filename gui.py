@@ -25,11 +25,12 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSpacerItem,
 )
-from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QTextCursor
 
 from core import tts
 from voices import categories as voice_categories, get_voices
+from languages import get_languages
 
 ALL_CATEGORIES = "All Categories"
 DEFAULT_SPEED = 10
@@ -46,6 +47,7 @@ class IllegalFilenameError(Exception):
 class ApiParams:
     text: str
     voice_type: str
+    language: str
     speed_ratio: float
     volume_ratio: float
     pitch_ratio: float
@@ -56,6 +58,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._voices = dict([v.name, v.code] for v in get_voices())
+        self._languages = {}
         self.setWindowTitle("Volcengine Text-to-Speech")
 
         main_widget = QWidget()
@@ -102,7 +105,12 @@ class MainWindow(QMainWindow):
         )
         right_layout.addWidget(self.voice_category_selector)
         self.voice_selector = QComboBox()
+        self.voice_selector.currentTextChanged.connect(self.on_voice_selection)
         right_layout.addWidget(self.voice_selector)
+
+        # Language selection combobox
+        self.language_selector = QComboBox()
+        right_layout.addWidget(self.language_selector)
 
         right_layout.addSpacerItem(QSpacerItem(0, 10))
 
@@ -173,8 +181,9 @@ class MainWindow(QMainWindow):
         self.text_edit.viewport().installEventFilter(self)
         self.text_edit.setMouseTracking(True)
 
-        # Initialize the voice selector
+        # Initialize linked selectors
         self.on_voice_category_selection()
+        self.on_voice_selection()
 
         # Initialize styles
         self.set_styles()
@@ -205,6 +214,16 @@ class MainWindow(QMainWindow):
         )
         self.voice_category_selector.setStyleSheet("padding: 6;")
         self.voice_selector.setStyleSheet("padding: 6;")
+        self.language_selector.setStyleSheet(
+            """
+            QComboBox {
+                padding: 6;
+            }
+            QComboBox:disabled {
+                background-color: transparent;
+            }
+            """
+        )
         self.save_dir_selector.setStyleSheet("padding: 6;")
         self.change_dir_button.setStyleSheet(
             """
@@ -248,6 +267,16 @@ class MainWindow(QMainWindow):
         self.voice_selector.clear()
         self.voice_selector.addItems([v.name for v in voices])
 
+    def on_voice_selection(self):
+        voice_name = self.voice_selector.currentText()
+        self._languages = dict(get_languages(voice_name=voice_name))
+        self.language_selector.clear()
+        if self._languages:
+            self.language_selector.setEnabled(True)
+            self.language_selector.addItems(list(self._languages.keys()))
+        else:
+            self.language_selector.setDisabled(True)
+
     def set_speed_label(self, speed: int):
         if speed < 2:
             speed = 2
@@ -285,6 +314,10 @@ class MainWindow(QMainWindow):
         voice_name = self.voice_selector.currentText()
         return self._voices[voice_name]
 
+    def get_language(self) -> str:
+        lang_name = self.language_selector.currentText()
+        return self._languages.get(lang_name, "")
+
     def get_speed_ratio(self) -> float:
         return self.speed_slider.value() / 10
 
@@ -320,6 +353,7 @@ class MainWindow(QMainWindow):
         api_params = ApiParams(
             text=text,
             voice_type=self.get_voice_type(),
+            language=self.get_language(),
             speed_ratio=self.get_speed_ratio(),
             volume_ratio=self.get_volume_ratio(),
             pitch_ratio=self.get_pitch_ratio(),
@@ -378,6 +412,7 @@ class ApiCaller(QThread):
                 save_path=self.save_path,
                 text=params.text,
                 voice_type=params.voice_type,
+                language=params.language,
                 speed_ratio=params.speed_ratio,
                 volume_ratio=params.volume_ratio,
                 pitch_ratio=params.pitch_ratio,
