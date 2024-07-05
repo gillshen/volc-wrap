@@ -350,6 +350,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Filename required", "Please specify a filename.")
             return
 
+        if os.path.exists(save_path):
+            overwrite = QMessageBox.question(
+                self,
+                "File already exists",
+                f"{save_path} already exists.\nDo you want to overwrite it?",
+            )
+            if overwrite == QMessageBox.StandardButton.No:
+                return
+
         api_params = ApiParams(
             text=text,
             voice_type=self.get_voice_type(),
