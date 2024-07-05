@@ -13,11 +13,14 @@ class ApiError(Exception):
 @dataclass()
 class AudioParams:
     voice_type: str = "BV702_streaming"  # Stefan
-    language: str = ""
-    emotion: str = ""
+    rate: int = 24_000  # sample rate
+    encoding: str = "mp3"
+    compression_rate: int = 1
     speed_ratio: float = 1.0
     volume_ratio: float = 1.0
     pitch_ratio: float = 1.0
+    emotion: str = ""
+    language: str = ""
 
 
 with open("apikey.txt") as api_file:
@@ -44,12 +47,7 @@ def tts(text: str, audio_params: AudioParams, save_path: str):
         else:
             chunks[-1] += sentence
 
-    audio_params_dict = {
-        "encoding": "mp3",
-        "compression_rate": 1,
-        "rate": 24_000,
-        **asdict(audio_params),
-    }
+    audio_params_dict = asdict(audio_params)
     if not language:
         del audio_params_dict["language"]
     if not audio_params.emotion:
