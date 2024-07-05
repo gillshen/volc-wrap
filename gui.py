@@ -5,7 +5,6 @@ import os.path
 import re
 import webbrowser
 from typing import Tuple
-from dataclasses import dataclass
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -28,7 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QTextCursor
 
-from core import tts
+from core import ApiParams, tts
 from voices import categories as voice_categories, get_voices
 from languages import get_languages
 
@@ -41,16 +40,6 @@ DEFAULT_AUTOPLAY = True
 
 class IllegalFilenameError(Exception):
     pass
-
-
-@dataclass()
-class ApiParams:
-    text: str
-    voice_type: str
-    language: str
-    speed_ratio: float
-    volume_ratio: float
-    pitch_ratio: float
 
 
 class MainWindow(QMainWindow):
@@ -368,7 +357,7 @@ class MainWindow(QMainWindow):
             pitch_ratio=self.get_pitch_ratio(),
         )
 
-        self.worker = ApiCaller(api_params=api_params, save_path=save_path)
+        self.worker = ApiCaller(params=api_params, save_path=save_path)
         self.worker.in_progress.connect(self.log)
         self.worker.started.connect(self.on_tts_start)
         self.worker.finished.connect(self.on_tts_finish)
@@ -380,9 +369,9 @@ class MainWindow(QMainWindow):
         self.console.clear()
         self.log("Starting...\n")
 
-    def on_tts_finish(self, status: int):
+    def on_tts_finish(self, exit_with_error: int):
         self.tts_button.setEnabled(True)
-        if status:
+        if exit_with_error:
             self.log("Task terminated due to error.")
             return
         save_path = self.worker.save_path
@@ -409,23 +398,14 @@ class ApiCaller(QThread):
     error = pyqtSignal(tuple)
     finished = pyqtSignal(int)
 
-    def __init__(self, api_params: ApiParams, save_path: str) -> None:
+    def __init__(self, params: ApiParams, save_path: str) -> None:
         super().__init__()
-        self.api_params = api_params
+        self.params = params
         self.save_path = save_path
 
     def run(self):
-        params = self.api_params
         try:
-            for _, message in tts(
-                save_path=self.save_path,
-                text=params.text,
-                voice_type=params.voice_type,
-                language=params.language,
-                speed_ratio=params.speed_ratio,
-                volume_ratio=params.volume_ratio,
-                pitch_ratio=params.pitch_ratio,
-            ):
+            for _, message in tts(self.params, self.save_path):
                 self.in_progress.emit(f"{message}...\n")
         except Exception as e:
             self.error.emit((e, traceback.format_exc()))

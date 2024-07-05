@@ -1,4 +1,5 @@
 import base64
+from dataclasses import dataclass, asdict
 import json
 import uuid
 import re
@@ -9,25 +10,28 @@ class ApiError(Exception):
     pass
 
 
+@dataclass()
+class ApiParams:
+    text: str
+    voice_type: str = "BV702_streaming"  # Stefan
+    language: str = ""
+    emotion: str = ""
+    speed_ratio: float = 1.0
+    volume_ratio: float = 1.0
+    pitch_ratio: float = 1.0
+
+
 with open("apikey.txt") as api_file:
-    appid, access_token, cluster = api_file.read().splitlines()
+    appid, access_token, cluster = filter(None, api_file.read().splitlines())
 
 headers = {"Authorization": f"Bearer;{access_token}"}
 host = "openspeech.bytedance.com"
 api_url = f"https://{host}/api/v1/tts"
-uid = str(uuid.uuid4())
+user_uid = str(uuid.uuid4())
 
 
-def tts(
-    text: str,
-    save_path: str,
-    voice_type: str = "BV702_streaming",
-    speed_ratio: float = 1.0,
-    volume_ratio: float = 1.0,
-    pitch_ratio: float = 1.0,
-    emotion: str = "",
-    language: str = "",
-):
+def tts(params: ApiParams, save_path: str):
+    language = ApiParams.language
     if language in {"", "cn", "ja"} or language.startswith("zh_"):
         sentence_pattern = r""".+?(?:[。！？]["”」』)）]*|\n|$)\s*"""
     else:
@@ -35,26 +39,25 @@ def tts(
 
     max_len = 1024
     chunks = []
-    for sentence in re.findall(sentence_pattern, text):
+    for sentence in re.findall(sentence_pattern, params.text):
         if not chunks or _byte_len(chunks[-1] + sentence) > max_len:
             chunks.append(sentence)
         else:
             chunks[-1] += sentence
 
     audio_params = {
-        "voice_type": voice_type,
+        "voice_type": params.voice_type,
         "encoding": "mp3",
-        "speed_ratio": speed_ratio,
-        "volume_ratio": volume_ratio,
-        "pitch_ratio": pitch_ratio,
+        "compression_rate": 1,
+        "rate": 24_000,
+        "speed_ratio": params.speed_ratio,
+        "volume_ratio": params.volume_ratio,
+        "pitch_ratio": params.pitch_ratio,
     }
-    if emotion:
-        audio_params["emotion"] = emotion
     if language:
         audio_params["language"] = language
-
-    if not save_path.endswith(".mp3"):
-        save_path += ".mp3"
+    if params.emotion:
+        audio_params["emotion"] = params.emotion
 
     with open(save_path, "wb") as target_file:
         n = len(chunks)
@@ -79,7 +82,7 @@ def api_request(text: str, audio_params: dict):
             "cluster": cluster,
         },
         "user": {
-            "uid": uid,
+            "uid": user_uid,
         },
         "audio": audio_params,
         "request": {
