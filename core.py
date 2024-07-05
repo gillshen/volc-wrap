@@ -15,6 +15,7 @@ with open("apikey.txt") as api_file:
 headers = {"Authorization": f"Bearer;{access_token}"}
 host = "openspeech.bytedance.com"
 api_url = f"https://{host}/api/v1/tts"
+uid = str(uuid.uuid4())
 
 
 def tts(
@@ -32,10 +33,10 @@ def tts(
     else:
         sentence_pattern = r""".+?(?:[.!?]["”)]*|\n|$)\s*"""
 
-    max_len = 250
+    max_len = 1024
     chunks = []
     for sentence in re.findall(sentence_pattern, text):
-        if not chunks or len(chunks[-1]) + len(sentence) > max_len:
+        if not chunks or _byte_len(chunks[-1] + sentence) > max_len:
             chunks.append(sentence)
         else:
             chunks[-1] += sentence
@@ -66,6 +67,10 @@ def tts(
             yield data, f"Progress: {i}/{n}"
 
 
+def _byte_len(text: str):
+    return len(text.encode("utf-8"))
+
+
 def api_request(text: str, audio_params: dict):
     payload = {
         "app": {
@@ -74,7 +79,7 @@ def api_request(text: str, audio_params: dict):
             "cluster": cluster,
         },
         "user": {
-            "uid": "388808087185088",
+            "uid": uid,
         },
         "audio": audio_params,
         "request": {
