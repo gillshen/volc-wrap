@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QTextCursor
 
-from core import ApiParams, tts
+from core import AudioParams, tts
 from voices import categories as voice_categories, get_voices
 from languages import get_languages
 
@@ -348,8 +348,7 @@ class MainWindow(QMainWindow):
             if overwrite == QMessageBox.StandardButton.No:
                 return
 
-        api_params = ApiParams(
-            text=text,
+        audio_params = AudioParams(
             voice_type=self.get_voice_type(),
             language=self.get_language(),
             speed_ratio=self.get_speed_ratio(),
@@ -357,7 +356,7 @@ class MainWindow(QMainWindow):
             pitch_ratio=self.get_pitch_ratio(),
         )
 
-        self.worker = ApiCaller(params=api_params, save_path=save_path)
+        self.worker = ApiCaller(text, audio_params, save_path)
         self.worker.in_progress.connect(self.log)
         self.worker.started.connect(self.on_tts_start)
         self.worker.finished.connect(self.on_tts_finish)
@@ -398,14 +397,15 @@ class ApiCaller(QThread):
     error = pyqtSignal(tuple)
     finished = pyqtSignal(int)
 
-    def __init__(self, params: ApiParams, save_path: str) -> None:
+    def __init__(self, text: str, audio_params: AudioParams, save_path: str) -> None:
         super().__init__()
-        self.params = params
+        self.text = text
+        self.audio_params = audio_params
         self.save_path = save_path
 
     def run(self):
         try:
-            for _, message in tts(self.params, self.save_path):
+            for _, message in tts(self.text, self.audio_params, self.save_path):
                 self.in_progress.emit(f"{message}...\n")
         except Exception as e:
             self.error.emit((e, traceback.format_exc()))

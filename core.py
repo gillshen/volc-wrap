@@ -11,8 +11,7 @@ class ApiError(Exception):
 
 
 @dataclass()
-class ApiParams:
-    text: str
+class AudioParams:
     voice_type: str = "BV702_streaming"  # Stefan
     language: str = ""
     emotion: str = ""
@@ -30,8 +29,8 @@ api_url = f"https://{host}/api/v1/tts"
 user_uid = str(uuid.uuid4())
 
 
-def tts(params: ApiParams, save_path: str):
-    language = ApiParams.language
+def tts(text: str, audio_params: AudioParams, save_path: str):
+    language = AudioParams.language
     if language in {"", "cn", "ja"} or language.startswith("zh_"):
         sentence_pattern = r""".+?(?:[。！？]["”」』)）]*|\n|$)\s*"""
     else:
@@ -39,30 +38,27 @@ def tts(params: ApiParams, save_path: str):
 
     max_len = 1024
     chunks = []
-    for sentence in re.findall(sentence_pattern, params.text):
+    for sentence in re.findall(sentence_pattern, text):
         if not chunks or _byte_len(chunks[-1] + sentence) > max_len:
             chunks.append(sentence)
         else:
             chunks[-1] += sentence
 
-    audio_params = {
-        "voice_type": params.voice_type,
+    audio_params_dict = {
         "encoding": "mp3",
         "compression_rate": 1,
         "rate": 24_000,
-        "speed_ratio": params.speed_ratio,
-        "volume_ratio": params.volume_ratio,
-        "pitch_ratio": params.pitch_ratio,
+        **asdict(audio_params),
     }
-    if language:
-        audio_params["language"] = language
-    if params.emotion:
-        audio_params["emotion"] = params.emotion
+    if not language:
+        del audio_params_dict["language"]
+    if not audio_params.emotion:
+        del audio_params_dict["emotion"]
 
     with open(save_path, "wb") as target_file:
         n = len(chunks)
         for i, chunk in enumerate(chunks, start=1):
-            resp = api_request(chunk, audio_params)
+            resp = api_request(chunk, audio_params_dict)
             if "data" not in resp:
                 raise ApiError(resp["message"])
             data = resp["data"]
