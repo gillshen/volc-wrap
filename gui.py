@@ -1,4 +1,3 @@
-import sys
 import traceback
 import os
 import os.path
@@ -412,11 +411,3 @@ class ApiCaller(QThread):
             self.finished.emit(1)
         else:
             self.finished.emit(0)
-
-
-if __name__ == "__main__":
-    app = QApplication([])
-    main_window = MainWindow()
-    main_window.resize(800, 600)
-    main_window.show()
-    sys.exit(app.exec())
